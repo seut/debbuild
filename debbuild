@@ -5,7 +5,7 @@
 # unlikely to conform to "Debian Policy".
 ###
 # SVN revision info
-# $Date: 2010-06-16 23:18:04 +0200 (Wed, 16 Jun 2010) $
+# $Date: 2010-06-16 17:18:04 -0400 (Wed, 16 Jun 2010) $
 # SVN revision $Rev: 155 $
 # Last update by $Author: kdeugau $
 ###
@@ -183,7 +183,8 @@ my $prepscript = '';
 my $buildscript = '';
 # %install doesn't need the full treatment from %clean;  just an empty place to install to.
 # NB - rpm doesn't do this;  is it really necessary?
-my $installscript = '[ "$RPM_BUILD_ROOT" != "/" ] && rm -rf $RPM_BUILD_ROOT'."\n";
+#my $installscript = '[ "$RPM_BUILD_ROOT" != "/" ] && rm -rf $RPM_BUILD_ROOT'."\n";
+my $installscript = '';
 my $cleanscript = '';
 
 # Snag some environment data
@@ -524,7 +525,7 @@ LINE: while (<SPECFILE>) {
 
 # preprocess %define's
     if (my ($key, $def) = (/^\%define\s+([^\s]+)\s+(.+)$/) ) {
-      $specglobals{$key} = expandmacros($def,'g');
+      $specglobals{$key} = expandmacros($def,'gp');
     }
 
     if (/^\%if/) {
@@ -1086,7 +1087,6 @@ sub install {
 sub binpackage {
 
   foreach my $pkg (@pkglist) {
-
     $pkgdata{$pkg}{arch} = $hostarch if !$pkgdata{$pkg}{arch};  # Just In Case.
 
     # Make sure we have somewhere to write the .deb file
@@ -1717,13 +1717,16 @@ die "excessive recursive macro replacement;  dying.\n" if $tmpcount > 14;
     $macrostring =~ s|%{optflags}|$optflags{$hostarch}|g;
     $macrostring =~ s|%{_vendor}|$specglobals{'_vendor'}|g;
 
-# should probably stick a "no runaway" flag in here...  Just In Case...
     # %define's
-    while (my ($key) = ($macrostring =~ /%{([a-z0-9]+)}/i) ) {
-# hrm.  This needs thinking.
-#die "A horrible death!  \%{$key}, '$macrostring'\n" if !$specglobals{$key};
-      $macrostring =~ s|%{$key}|$specglobals{$key}|g;
-		# wanna limit this to "... if $specglobals{$key}", but need more magic
+    my $ignored_key = "xxx";
+    while ($macrostring =~ m/%\{(?!$ignored_key\})([^}]+)\}/g) {
+      my $key = $1;
+      if ($specglobals{$key}) {
+        my $value = $specglobals{$key};
+        $macrostring =~ s/%\{$key\}/$value/g;
+      } else {
+        $ignored_key .= $key."|";
+      }
     }
 
     # system programs.  RPM uses a global config file for these;  we'll just
